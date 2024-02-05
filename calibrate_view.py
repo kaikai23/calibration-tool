@@ -24,14 +24,6 @@ def _to_filename(camera):
 
 def calibrate(frame, pav_img, h_file, camera, max_num_pts=4):
     h, pts1, pts2, pt_ids = get_h_from_images(frame, pav_img, num_rect_pts=max_num_pts)
-
-    pts1_file = f"data/pts1__view_{_to_filename(camera)}.npy"
-    pts2_file = f"data/pts2__view_{_to_filename(camera)}.npy"
-
-    # np.save(h_file, h)
-    # np.save(pts1_file, pts1)
-    # np.save(pts2_file, pts2)
-
     return h, pts1, pts2, pt_ids
 
 
@@ -77,15 +69,23 @@ def main(args):
     # cv2.resizeWindow(wname, 512, 512)
 
     h_file = f"data/h__cam_{_to_filename(camera)}.npy"
+    pts1_file = f"data/pts1__view_{_to_filename(camera)}.npy"
+    pts2_file = f"data/pts2__view_{_to_filename(camera)}.npy"
+    pt_ids_file = f"data/pt_ids__view_{_to_filename(camera)}.npy"
     draw_pts = {}
 
     h = pts1 = pts2 = pt_ids = None
     if os.path.isfile(h_file):
         h = np.load(h_file)
+        pts1 = np.load(pts1_file)
+        pts2 = np.load(pts2_file)
+        pt_ids = list(np.load(pt_ids_file))
+        print('Loaded previous homography')
 
     ori_frame = frame.copy()
     overlay = frame.copy()
-
+    global refine
+    refine = False
     while True:
         cv2.imshow(wname, frame)
         cv2.imshow(wname_p, floor)
@@ -101,8 +101,9 @@ def main(args):
 
 
         # Adjust points
-        elif key == ord("a"):
+        elif key == 13 or refine:  # 13:"Enter"
             assert h is not None
+            refine = True
             root = tk.Tk()
             root.title("Choose point id to adjust")
             label = tk.Label(root, text="Choose point id that's gonna be adjusted, "
@@ -114,9 +115,14 @@ def main(args):
             global clicked_num
             def on_button_click(key):
                 global clicked_num
+                global refine
                 button = button_list[key]
-                clicked_num = int(button['text'])
-                print(f'{clicked_num} is clicked')
+                if button['text'] == 'Finish':
+                    print('Finish refinement')
+                    refine = False
+                else:
+                    clicked_num = int(button['text'])
+                    print(f'{clicked_num} is clicked')
                 root.quit()
             # create buttons
             for key in range(num_buttons):
@@ -128,7 +134,7 @@ def main(args):
             button_list.append(button)
             root.mainloop()
             root.destroy()
-            while True:
+            while True and refine:
                 key = cv2.waitKey(0)
                 if key == 81:  # "←"
                     shift = np.array([-1, 0])
@@ -138,8 +144,8 @@ def main(args):
                     shift = np.array([1, 0])
                 elif key == 84:  # "↓"
                     shift = np.array([0, 1])
-                elif key == ord('a') or key == ord('q'):
-                    print('a or q is pressed')
+                elif key == 13:  # "Enter"
+                    print('next point')
                     break
                 else:
                     print(f'{key}, continue')
@@ -153,43 +159,48 @@ def main(args):
                     p1 = p1 + shift
                     pts1 = np.vstack((pts1[1:], p1))
                     pts2 = np.vstack((pts2[1:], p2))
+                    pt_ids = pt_ids[1:] + [clicked_num]
+                pts1 = np.asarray(pts1, dtype=np.float32)
+                pts2 = np.asarray(pts2, dtype=np.float32)
                 h = cv2.getPerspectiveTransform(pts2, pts1)
                 print(f'points1: {pts1}, points2: {pts2}')
                 print(f'Homography is {h}')
                 draw_pts = {id: transform(pt, h) for id, pt in predefined_corners.items()}
                 overlay = ori_frame.copy()
                 for id, pt in draw_pts.items():
-                    cv2.circle(overlay, tuple(pt), 5, (0, 0, 255), -1)
-                    cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 3)
-                    cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 3)
+                    cv2.circle(overlay, tuple(pt), 2, (0, 0, 255), -1)
+                    cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 2)
+                    cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 2)
                 alpha = 0.45
                 frame = cv2.addWeighted(overlay, alpha, ori_frame, 1 - alpha, 0)
                 cv2.imshow(wname, frame)
 
 
-
-
-
-
         # Exit
         elif key == ord("q"):
             break
+        elif key == ord("s"):
+            np.save(h_file, h)
+            np.save(pts1_file, pts1)
+            np.save(pts2_file, pts2)
+            np.save(pt_ids_file, pt_ids)
+            print(f'saved to {pts1_file}\n{pts2_file}\n{h_file}\n{pt_ids_file}')
 
         # Draw in original image
         for id, pt in draw_pts.items():
-            cv2.circle(overlay, tuple(pt), 5, (0, 0, 255), -1)
-            cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 3)
-            cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 3)
+            cv2.circle(overlay, tuple(pt), 2, (0, 0, 255), -1)
+            cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 2)
+            cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 2)
         alpha = 0.45
         frame = cv2.addWeighted(overlay, alpha, ori_frame, 1 - alpha, 0)
 
