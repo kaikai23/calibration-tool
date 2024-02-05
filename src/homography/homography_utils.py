@@ -61,6 +61,7 @@ def get_h_from_images(
     min_required_pts = 4
     pts1 = []  # video frame points
     pts2 = []  # template points
+    pt_ids = []  # chosen template point ids
 
     root = tk.Tk()
     root.title("Choose point id in template")
@@ -74,6 +75,7 @@ def get_h_from_images(
         button = button_list[key]
         clicked_num = int(button['text'])
         print(f'{clicked_num} is clicked')
+        pt_ids.append(clicked_num)
         root.quit()
         button.pack_forget()  # Hide the clicked button
         # buttons_alive.remove(key)
@@ -126,7 +128,7 @@ def get_h_from_images(
         # with ransac
         h0, _ = cv2.findHomography(pts2, pts1)
 
-    return h0, pts1, pts2
+    return h0, pts1, pts2, pt_ids
 
 
 def transform(points, homography):

@@ -23,16 +23,16 @@ def _to_filename(camera):
 
 
 def calibrate(frame, pav_img, h_file, camera, max_num_pts=4):
-    h, pts1, pts2 = get_h_from_images(frame, pav_img, num_rect_pts=max_num_pts)
+    h, pts1, pts2, pt_ids = get_h_from_images(frame, pav_img, num_rect_pts=max_num_pts)
 
     pts1_file = f"data/pts1__view_{_to_filename(camera)}.npy"
     pts2_file = f"data/pts2__view_{_to_filename(camera)}.npy"
 
-    np.save(h_file, h)
-    np.save(pts1_file, pts1)
-    np.save(pts2_file, pts2)
+    # np.save(h_file, h)
+    # np.save(pts1_file, pts1)
+    # np.save(pts2_file, pts2)
 
-    return h
+    return h, pts1, pts2, pt_ids
 
 
 def get_draw_pts(frame, num_pts=30):
@@ -79,7 +79,7 @@ def main(args):
     h_file = f"data/h__cam_{_to_filename(camera)}.npy"
     draw_pts = {}
 
-    h = None
+    h = pts1 = pts2 = pt_ids = None
     if os.path.isfile(h_file):
         h = np.load(h_file)
 
@@ -91,11 +91,90 @@ def main(args):
         cv2.imshow(wname_p, floor)
         key = cv2.waitKey(10)
 
-        if h is None and key == -1:
-            h = calibrate(frame, floor, h_file, camera)
-            print(f'Homography is {h}')
         if h is not None:
             draw_pts = {id: transform(pt, h) for id, pt in predefined_corners.items()}
+
+        if h is None and key == -1:
+            h, pts1, pts2, pt_ids = calibrate(frame, floor, h_file, camera)
+            print(f'points1: {pts1}, points2: {pts2}')
+            print(f'Homography is {h}')
+
+
+        # Adjust points
+        elif key == ord("a"):
+            assert h is not None
+            root = tk.Tk()
+            root.title("Choose point id to adjust")
+            label = tk.Label(root, text="Choose point id that's gonna be adjusted, "
+                                        "then use up/left/down/right arrows to adjust, "
+                                        "press 'a' again for the next point", font=("Helvetica", 14))
+            label.pack()
+            button_list = []
+            num_buttons = len(predefined_corners)
+            global clicked_num
+            def on_button_click(key):
+                global clicked_num
+                button = button_list[key]
+                clicked_num = int(button['text'])
+                print(f'{clicked_num} is clicked')
+                root.quit()
+            # create buttons
+            for key in range(num_buttons):
+                button = tk.Button(root, text=str(key), command=lambda k=key: on_button_click(k))
+                button.pack()
+                button_list.append(button)
+            button = tk.Button(root, text='Finish', command=lambda k=-1: on_button_click(k))
+            button.pack()
+            button_list.append(button)
+            root.mainloop()
+            root.destroy()
+            while True:
+                key = cv2.waitKey(0)
+                if key == 81:  # "←"
+                    shift = np.array([-1, 0])
+                elif key == 82:  # "↑"
+                    shift = np.array([0, -1])
+                elif key == 83:  # "→"
+                    shift = np.array([1, 0])
+                elif key == 84:  # "↓"
+                    shift = np.array([0, 1])
+                elif key == ord('a') or key == ord('q'):
+                    print('a or q is pressed')
+                    break
+                else:
+                    print(f'{key}, continue')
+                    continue
+                if clicked_num in pt_ids:
+                    i = pt_ids.index(clicked_num)
+                    pts1[i] = pts1[i] + shift
+                else:
+                    p2 = predefined_corners[clicked_num]
+                    p1 = transform(p2, h)
+                    p1 = p1 + shift
+                    pts1 = np.vstack((pts1[1:], p1))
+                    pts2 = np.vstack((pts2[1:], p2))
+                h = cv2.getPerspectiveTransform(pts2, pts1)
+                print(f'points1: {pts1}, points2: {pts2}')
+                print(f'Homography is {h}')
+                draw_pts = {id: transform(pt, h) for id, pt in predefined_corners.items()}
+                overlay = ori_frame.copy()
+                for id, pt in draw_pts.items():
+                    cv2.circle(overlay, tuple(pt), 5, (0, 0, 255), -1)
+                    cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 3)
+                    cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 3)
+                alpha = 0.45
+                frame = cv2.addWeighted(overlay, alpha, ori_frame, 1 - alpha, 0)
+                cv2.imshow(wname, frame)
+
+
+
+
+
 
         # Exit
         elif key == ord("q"):
