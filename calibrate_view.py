@@ -106,9 +106,11 @@ def main(args):
             refine = True
             root = tk.Tk()
             root.title("Choose point id to adjust")
-            label = tk.Label(root, text="Choose point id that's gonna be adjusted, "
-                                        "then use up/left/down/right arrows to adjust, "
-                                        "press 'a' again for the next point", font=("Helvetica", 14))
+            label = tk.Label(root, text="1. Click point id you want to adjusted\n "
+                                        "2. Press ↑↓←→ arrows to adjust\n "
+                                        "3. Press 'Enter' and click next point\n "
+                                        "4. Click 'Finish' when you want to stop"
+                                        , font=("Helvetica", 14))
             label.pack()
             button_list = []
             num_buttons = len(predefined_corners)
