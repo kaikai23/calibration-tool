@@ -138,13 +138,13 @@ def main(args):
             root.destroy()
             while True and refine:
                 key = cv2.waitKey(0)
-                if key == 81:  # "←"
+                if key in [81, 2]:  # "←"
                     shift = np.array([-1, 0])
-                elif key == 82:  # "↑"
+                elif key in [82, 0]:  # "↑"
                     shift = np.array([0, -1])
-                elif key == 83:  # "→"
+                elif key in [83, 3]:  # "→"
                     shift = np.array([1, 0])
-                elif key == 84:  # "↓"
+                elif key in [84, 1]:  # "↓"
                     shift = np.array([0, 1])
                 elif key == 13:  # "Enter"
                     print('next point')
