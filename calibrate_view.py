@@ -4,8 +4,7 @@ import argparse
 import cv2
 import numpy as np
 
-from src.homography.homography_utils import get_h_from_images, transform
-from src.opencv_utils import MousePointsClick, OpenCVWindow
+from utils.homography_utils import get_h_from_images, transform
 
 import tkinter as tk
 from predefined_corners import predefined_corners
@@ -20,19 +19,6 @@ def _to_filename(camera):
         .replace(":", "")
         .replace("/", "-")
     )
-
-
-def calibrate(frame, pav_img, max_num_pts=4):
-    h, pts1, pts2, pt_ids = get_h_from_images(frame, pav_img, num_rect_pts=max_num_pts)
-    return h, pts1, pts2, pt_ids
-
-
-def get_draw_pts(frame, num_pts=30):
-    w = OpenCVWindow(f"Get max #{num_pts}")
-    mpc = MousePointsClick(w, num_pts)
-    mpc.get_points(w, frame, pts_size=20)
-    draw_pts = np.asarray(mpc.points)
-    return draw_pts
 
 
 def transform(points, homography):
@@ -94,7 +80,7 @@ def main(args):
             draw_pts = {id: transform(pt, h) for id, pt in predefined_corners.items()}
 
         if h is None and key == -1:
-            h, pts1, pts2, pt_ids = calibrate(frame, floor, h_file, camera)
+            h, pts1, pts2, pt_ids = get_h_from_images(frame, num_rect_pts=4)
             print(f'points1: {pts1}, points2: {pts2}')
             print(f'Homography is {h}')
 
