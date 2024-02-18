@@ -13,16 +13,16 @@ from predefined_corners import predefined_corners
 
 def _to_filename(camera):
     return (
-        camera.replace("\\", "")
+        camera.replace("\\", "-")
         .replace(".", "")
         .replace("-", "")
         .replace("@", "")
         .replace(":", "")
-        .replace("/", "")
+        .replace("/", "-")
     )
 
 
-def calibrate(frame, pav_img, h_file, camera, max_num_pts=4):
+def calibrate(frame, pav_img, max_num_pts=4):
     h, pts1, pts2, pt_ids = get_h_from_images(frame, pav_img, num_rect_pts=max_num_pts)
     return h, pts1, pts2, pt_ids
 
@@ -66,12 +66,11 @@ def main(args):
         raise NotImplementedError()
 
     cv2.namedWindow(wname, cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow(wname, 512, 512)
 
-    h_file = f"data/h__cam_{_to_filename(camera)}.npy"
-    pts1_file = f"data/pts1__view_{_to_filename(camera)}.npy"
-    pts2_file = f"data/pts2__view_{_to_filename(camera)}.npy"
-    pt_ids_file = f"data/pt_ids__view_{_to_filename(camera)}.npy"
+    h_file = f"data/h_{_to_filename(camera)}.npy"
+    pts1_file = f"data/pts1_{_to_filename(camera)}.npy"
+    pts2_file = f"data/pts2_{_to_filename(camera)}.npy"
+    pt_ids_file = f"data/pt_ids_{_to_filename(camera)}.npy"
     draw_pts = {}
 
     h = pts1 = pts2 = pt_ids = None
@@ -106,7 +105,7 @@ def main(args):
             refine = True
             root = tk.Tk()
             root.title("Choose point id to adjust")
-            label = tk.Label(root, text="1. Click point id you want to adjusted\n "
+            label = tk.Label(root, text="1. Click point id you want to adjuste\n "
                                         "2. Press ↑↓←→ arrows to adjust\n "
                                         "3. Press 'Enter' and click next point\n "
                                         "4. Click 'Finish' when you want to stop"
@@ -169,17 +168,17 @@ def main(args):
                 print(f'Homography is {h}')
                 draw_pts = {id: transform(pt, h) for id, pt in predefined_corners.items()}
                 overlay = ori_frame.copy()
-                for id, pt in draw_pts.items():
-                    cv2.circle(overlay, tuple(pt), 2, (0, 0, 255), -1)
-                    cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 2)
-                    cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[0]), tuple(draw_pts[1]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[1]), tuple(draw_pts[3]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[3]), tuple(draw_pts[2]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[2]), tuple(draw_pts[0]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[4]), tuple(draw_pts[6]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[6]), tuple(draw_pts[7]), (255, 0, 0), 2)
+                cv2.line(overlay, tuple(draw_pts[7]), tuple(draw_pts[5]), (255, 0, 0), 2)
                 alpha = 0.45
                 frame = cv2.addWeighted(overlay, alpha, ori_frame, 1 - alpha, 0)
+                for id, pt in draw_pts.items():
+                    cv2.circle(frame, tuple(pt), 2, (0, 0, 255), -1)
                 cv2.imshow(wname, frame)
 
 
@@ -210,9 +209,18 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=str, help="The input video file")
-    parser.add_argument("plane", type=str, help="The plane image file")
+    parser.add_argument("--plane", type=str, default='images/template_corners.png', help="The plane image file")
     args = parser.parse_args()
-    root = tk.Tk()
+    root_ = tk.Tk()
+    root_.title('main')
+    label = tk.Label(root_, text="流程\n"
+                                 "1.选择图片与模版的4个对应点\n"
+                                 "(若已有保存值，会自动跳过此步,直接显示蓝色球场线)\n"
+                                 "2.微调4个对应点的位置：Enter键\n"
+                                 "3.保存/覆盖存档：S键\n"
+                                 "4.退出：Q键"
+                     , font=("Helvetica", 14))
+    label.pack()
 
     print("*" * 200)
     print("*")
